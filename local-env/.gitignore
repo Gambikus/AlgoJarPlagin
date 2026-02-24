@@ -1,0 +1,6 @@
+# Cloned coordinator repo — clone here, do not commit
+coordinator/*
+!coordinator/.gitkeep
+
+# Build outputs
+test-algo-project/target/

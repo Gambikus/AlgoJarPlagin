@@ -1,0 +1,80 @@
+<idea-plugin>
+    <id>com.example.jarconfigplugin</id>
+    <name>JARConfigPlugin</name>
+    <vendor email="support@example.com" url="https://github.com/Gambikus/AlgoJarPlagin">Gambikus</vendor>
+    <description><![CDATA[
+        IntelliJ IDEA plugin for configuring and launching JAR-based algorithms
+        in a distributed computing environment via the Coordinator cluster API.
+        <br/><br/>
+        Features:
+        <ul>
+            <li>Configure algorithm parameters (iterations, agents, dimensions)</li>
+            <li>Auto-pack project into executable JAR</li>
+            <li>Upload JAR to S3 and submit jobs to the Coordinator</li>
+            <li>Monitor SPOT nodes and task queue in real time</li>
+            <li>View results and export metrics</li>
+        </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <b>1.0.0</b>
+        <ul>
+            <li>Initial release</li>
+            <li>Build & upload JAR to S3</li>
+            <li>Submit jobs to Coordinator</li>
+            <li>Real-time monitoring of SPOT nodes</li>
+            <li>Results export (CSV/JSON)</li>
+        </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.example.jarconfigplugin.settings.PluginSettingsConfigurable"
+                id="com.example.jarconfigplugin.settings"
+                displayName="JAR Config Plugin"/>
+
+        <applicationService
+                serviceImplementation="com.example.jarconfigplugin.settings.PluginSettingsState"/>
+
+        <projectService
+                serviceImplementation="com.example.jarconfigplugin.services.CoordinatorService"/>
+
+        <projectService
+                serviceImplementation="com.example.jarconfigplugin.services.S3Service"/>
+
+        <projectService
+                serviceImplementation="com.example.jarconfigplugin.services.JarBuildService"/>
+
+        <projectService
+                serviceImplementation="com.example.jarconfigplugin.services.JobStateService"/>
+
+        <toolWindow
+                id="JAR Config"
+                anchor="right"
+                icon="/icons/pluginIcon.svg"
+                factoryClass="com.example.jarconfigplugin.ui.ConfigToolWindowFactory"/>
+
+        <toolWindow
+                id="JAR Monitor"
+                anchor="bottom"
+                icon="/icons/pluginIcon.svg"
+                factoryClass="com.example.jarconfigplugin.ui.MonitorToolWindowFactory"/>
+
+    </extensions>
+
+    <actions>
+        <action
+                id="JARConfig.OpenConfig"
+                class="com.example.jarconfigplugin.actions.OpenConfigAction"
+                text="Open JAR Config"
+                description="Open JAR Config Tool Window">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+
+</idea-plugin>

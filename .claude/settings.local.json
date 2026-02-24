@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(docker run:*)",
+      "Bash(docker exec:*)"
+    ]
+  }
+}
