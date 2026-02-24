@@ -1,123 +1,122 @@
 # JAR Config Plugin
 
-IntelliJ IDEA plugin for submitting algorithm jobs to a distributed computing cluster.
+Плагин для IntelliJ IDEA, который позволяет отправлять задания с алгоритмами на распределённый вычислительный кластер.
 
-The plugin handles the full pipeline: build the project JAR, upload it to S3, submit a job to the **Coordinator** API, and monitor execution across **SPOT** worker nodes in real time.
+Плагин берёт на себя весь пайплайн: собирает JAR проекта, загружает его в S3, отправляет задание в API **Координатора** и в реальном времени отслеживает выполнение на **SPOT**-нодах.
 
-## How it works
+## Как это работает
 
 ```
 IntelliJ IDE
     │
-    ├─ JAR Config panel ──► Gradle/Maven build ──► S3 upload ──► POST /api/v1/jobs
-    │                                                                    │
-    └─ JAR Monitor panel ◄─────── polling GET /api/v1/jobs/{id} ◄───────┘
+    ├─ Панель JAR Config ──► Сборка Gradle/Maven ──► Загрузка в S3 ──► POST /api/v1/jobs
+    │                                                                         │
+    └─ Панель JAR Monitor ◄────── polling GET /api/v1/jobs/{id} ◄────────────┘
                                   GET /api/v1/spots
 ```
 
-1. Developer configures algorithm parameters (which algorithms, iteration/agent/dimension ranges) in the **JAR Config** panel.
-2. Clicks **Build & Submit** — the plugin builds the JAR, uploads it to S3, and submits a job to the Coordinator.
-3. The Coordinator distributes tasks across SPOT nodes. Each task runs the JAR with specific parameter values.
-4. The **JAR Monitor** polls for task status every 4 seconds. When tasks complete, results (fopt values, best positions, runtimes) are available in the **Results** panel.
+1. Разработчик настраивает параметры алгоритма (какие алгоритмы, диапазоны итераций/агентов/размерности) в панели **JAR Config**.
+2. Нажимает **Build & Submit** — плагин собирает JAR, загружает в S3 и отправляет задание Координатору.
+3. Координатор распределяет задачи по SPOT-нодам. Каждая задача запускает JAR с конкретными значениями параметров.
+4. **JAR Monitor** опрашивает статус задач каждые 4 секунды. Когда задачи завершены, результаты (значения fopt, лучшие позиции, время выполнения) доступны в панели **Results**.
 
-## Features
+## Возможности
 
-- **JAR Config** tool window (right panel)
-  - Module and main class selection
-  - Algorithm list (comma-separated)
-  - Parameter sweep: iterations, agents, dimension — each with min / max / step
-  - Build log with progress output and Clear button
-  - One-click **Build & Submit**
+- **Панель JAR Config** (правый тулбар)
+  - Выбор модуля и главного класса
+  - Список алгоритмов (через запятую)
+  - Перебор параметров: итерации, агенты, размерность — у каждого min / max / step
+  - Лог сборки с прогрессом и кнопкой Clear
+  - Одна кнопка **Build & Submit**
 
-- **JAR Monitor** tool window (bottom panel)
-  - **Live Monitor** tab — SPOT nodes table (CPU load, running tasks, heartbeat) + task queue with status coloring
-  - **Results** tab — load completed task results by Job ID
-    - Table view: all task parameters and metrics
-    - **Chart** view: scatter plot (X = any parameter, Y = fopt, color = algorithm, point size = 3rd parameter)
-    - Export to CSV or JSON
+- **Панель JAR Monitor** (нижний тулбар)
+  - Вкладка **Live Monitor** — таблица SPOT-нод (загрузка CPU, запущенные задачи, heartbeat) + очередь задач с цветовой индикацией статусов
+  - Вкладка **Results** — загрузка результатов завершённых задач по Job ID
+    - Табличное представление: все параметры и метрики
+    - **График**: scatter plot (X — любой параметр, Y — fopt, цвет — алгоритм, размер точки — 3-й параметр)
+    - Экспорт в CSV или JSON
 
-- **Settings** (`Settings → Tools → JAR Config Plugin`)
-  - Coordinator URL
+- **Настройки** (`Settings → Tools → JAR Config Plugin`)
+  - URL Координатора
   - S3 endpoint, bucket, key prefix
-  - S3 access/secret key (stored in IDE settings)
-  - **Test Coordinator** button — checks `/api/v1/health` with a 5-second timeout
-  - **Test S3 Connection** button — verifies bucket access with a 12-second timeout
+  - Access/Secret key для S3 (хранятся в настройках IDE, не в файлах проекта)
+  - Кнопка **Test Coordinator** — проверяет `/api/v1/health` с таймаутом 5 секунд
+  - Кнопка **Test S3 Connection** — проверяет доступ к bucket с таймаутом 12 секунд
 
-## User cases
+## Сценарии использования
 
-### Case 1: Running a parameter sweep
+### Сценарий 1: Перебор параметров
 
-You have a Java/Kotlin optimization algorithm and want to benchmark it across combinations of agent count, iteration count, and problem dimension.
+Есть алгоритм оптимизации на Java/Kotlin, нужно протестировать его на всех комбинациях количества агентов, итераций и размерности задачи.
 
-1. Open your algorithm project in IntelliJ.
-2. In **JAR Config**, set algorithms (e.g. `sphere,rosenbrock`), and ranges for each parameter.
-3. Click **Build & Submit**. The plugin creates and submits a job that generates all parameter combinations as separate tasks.
-4. Watch **Live Monitor** — tasks are picked up by SPOT nodes and run in parallel.
-5. When done, go to **Results → Load Results** and explore the fopt vs. agents scatter plot to find which configuration converges fastest.
+1. Открой проект алгоритма в IntelliJ.
+2. В **JAR Config** укажи алгоритмы (например `sphere,rosenbrock`) и диапазоны каждого параметра.
+3. Нажми **Build & Submit**. Плагин создаёт задание, которое разбивается на отдельные задачи по всем комбинациям параметров.
+4. В **Live Monitor** видно, как SPOT-ноды забирают задачи и выполняют их параллельно.
+5. По завершении перейди в **Results → Load Results** и изучи scatter plot fopt vs. agents, чтобы найти оптимальную конфигурацию.
 
-### Case 2: Comparing multiple algorithms
+### Сценарий 2: Сравнение алгоритмов
 
-Set algorithms to `pso,de,ga` with identical parameter ranges. After the job completes, the chart colors each algorithm differently, making cross-algorithm comparison immediate.
+Укажи алгоритмы `pso,de,ga` с одинаковыми диапазонами параметров. После завершения задания на графике каждый алгоритм отображается своим цветом — сравнение нагляднее некуда.
 
-### Case 3: Iterative tuning
+### Сценарий 3: Итеративная настройка
 
-Submit a broad sweep first. After loading results, narrow the parameter ranges to the promising region and submit again. The Results panel accepts any Job ID so you can compare across runs.
+Сначала запусти широкий перебор. Загрузив результаты, сузь диапазоны до перспективной области и запусти снова. Панель Results принимает любой Job ID — можно сравнивать результаты разных запусков.
 
-### Case 4: Exporting data for a report
+### Сценарий 4: Экспорт данных для отчёта
 
-Load results, switch to the Table tab, and click **Export CSV** or **Export JSON**. The CSV includes all task parameters, fopt, best position, and runtime.
+Загрузи результаты, переключись на вкладку Table и нажми **Export CSV** или **Export JSON**. CSV содержит все параметры задачи, fopt, лучшую позицию и время выполнения.
 
-## Requirements
+## Требования
 
 - IntelliJ IDEA 2024.1 – 2024.3 (build 241 – 243.x)
 - JDK 17+
-- Gradle wrapper (`gradlew`) or Maven wrapper (`mvnw`) in the project being built
-- Coordinator backend accessible over HTTP
-- S3-compatible storage (Yandex Cloud Object Storage, MinIO, AWS S3, etc.)
+- Gradle wrapper (`gradlew`) или Maven wrapper (`mvnw`) в собираемом проекте
+- Доступный по HTTP Координатор
+- S3-совместимое хранилище (Yandex Cloud Object Storage, MinIO, AWS S3 и др.)
 
-## Installation
+## Установка
 
-**From disk (development build):**
+**Из файла (dev-сборка):**
 ```bash
 .\gradlew.bat build
 ```
-Then **Settings → Plugins → ⚙ → Install Plugin from Disk** and select
-`build/distributions/JARConfigPlugin-1.0.0.zip`. Restart IDE.
+Затем **Settings → Plugins → ⚙ → Install Plugin from Disk** и выбери
+`build/distributions/JARConfigPlugin-1.0.0.zip`. Перезапусти IDE.
 
-**Run in sandbox (without installing):**
+**Запуск в песочнице (без установки):**
 ```bash
 .\gradlew.bat runIde
 ```
 
-## Configuration
+## Настройка
 
 **Settings → Tools → JAR Config Plugin**
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Coordinator URL | `http://localhost:8081` | Base URL of the Coordinator REST API |
-| S3 Endpoint | `https://storage.yandexcloud.net` | S3-compatible endpoint |
-| Bucket | `orhestra-algorithms` | Bucket for uploaded JARs |
-| Key Prefix | `experiments` | Object key prefix, e.g. `experiments` → `experiments/my-algo-1.0.jar` |
-| Access Key / Secret Key | — | Stored in IDE settings file (not in project files) |
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| Coordinator URL | `http://localhost:8081` | Базовый URL REST API Координатора |
+| S3 Endpoint | `https://storage.yandexcloud.net` | S3-совместимый endpoint |
+| Bucket | `orhestra-algorithms` | Bucket для загрузки JAR-файлов |
+| Key Prefix | `experiments` | Префикс ключа объекта, например `experiments` → `experiments/my-algo-1.0.jar` |
+| Access Key / Secret Key | — | Хранятся в настройках IDE (не в файлах проекта) |
 
-## Local environment
+## Локальное окружение
 
-See [local-env/README.md](local-env/README.md) for instructions on running
-the full stack locally with Docker (MinIO + Coordinator + SPOT node).
+Инструкции по запуску полного стека локально с Docker (MinIO + Координатор + SPOT-нода): [local-env/README.md](local-env/README.md).
 
-## Build support
+## Поддержка систем сборки
 
-The plugin detects the build tool from the project root:
+Плагин определяет систему сборки по корню проекта:
 
-| Build tool | Detection | Commands tried (in order) |
-|------------|-----------|---------------------------|
-| Gradle | `build.gradle.kts` or `build.gradle` present | `shadowJar`, `:module:shadowJar`, `jar`, `:module:jar` |
-| Maven | `pom.xml` present | `mvn package -DskipTests` |
+| Система сборки | Определение | Команды (в порядке попытки) |
+|----------------|-------------|------------------------------|
+| Gradle | Наличие `build.gradle.kts` или `build.gradle` | `shadowJar`, `:module:shadowJar`, `jar`, `:module:jar` |
+| Maven | Наличие `pom.xml` | `mvn package -DskipTests` |
 
-The JAR is searched in `build/libs/` (Gradle) and `target/` (Maven), including one level of subdirectories.
+JAR ищется в `build/libs/` (Gradle) и `target/` (Maven), включая один уровень подпапок.
 
-## Project structure
+## Структура проекта
 
 ```
 plugin root/
@@ -129,54 +128,31 @@ plugin root/
 │   ├── settings/       PluginSettingsState, PluginSettingsConfigurable, CredentialStore
 │   └── ui/             ConfigPanel, MonitorPanel, ResultsPanel, FoptChartPanel,
 │                       ConfigToolWindowFactory, MonitorToolWindowFactory
-├── src/test/           Unit tests (JUnit 5, MockK, WireMock)
-├── ui-tests/           Remote Robot UI tests
-├── local-env/          Docker stack for local development
-│   ├── coordinator/    ← clone coordinator repo here (gitignored)
-│   ├── spot-node/      mock SPOT node (Python)
-│   ├── coordinator.Dockerfile
+├── src/test/           Юнит-тесты (JUnit 5, MockK, WireMock)
+├── ui-tests/           UI-тесты Remote Robot
+├── local-env/          Локальное окружение для разработки
+│   ├── coordinator/    ← клонируй сюда репо координатора (gitignored)
+│   ├── spot-node/      мок SPOT-ноды (Python, запускается в Docker)
 │   ├── spot.Dockerfile
-│   ├── docker-compose.yml
-│   └── test-algo-project/  sample Maven algorithm project
+│   ├── docker-compose.yml  MinIO + мок SPOT-ноды
+│   └── test-algo-project/  пример Maven-проекта алгоритма
 └── build.gradle.kts
 ```
 
-## Tech stack
+## Стек технологий
 
-| Component | Technology |
+| Компонент | Технология |
 |-----------|------------|
-| Language | Kotlin 2.1 |
-| Build | Gradle 8.13, IntelliJ Platform Gradle Plugin 2.11 |
-| HTTP client | OkHttp 4.x |
+| Язык | Kotlin 2.1 |
+| Сборка | Gradle 8.13, IntelliJ Platform Gradle Plugin 2.11 |
+| HTTP-клиент | OkHttp 4.x |
 | JSON | Jackson (Kotlin module) |
 | S3 | AWS SDK for Java v2 |
-| UI | IntelliJ Platform Swing (JB* components) |
-| Tests | JUnit 5, MockK, WireMock |
+| UI | IntelliJ Platform Swing (JB*-компоненты) |
+| Тесты | JUnit 5, MockK, WireMock |
 
-## Compatibility
+## Совместимость
 
 - **sinceBuild**: 241 (IntelliJ IDEA 2024.1)
 - **untilBuild**: 243.* (IntelliJ IDEA 2024.3.x)
 
-## Publishing to JetBrains Marketplace
-
-1. Register on [plugins.jetbrains.com](https://plugins.jetbrains.com) and create a plugin entry.
-2. Obtain a signing certificate from the plugin page → **Certificates**.
-3. Set environment variables and build a signed ZIP:
-   ```powershell
-   $env:CERTIFICATE_CHAIN    = Get-Content -Raw path\to\chain.crt
-   $env:PRIVATE_KEY          = Get-Content -Raw path\to\private.key
-   $env:PRIVATE_KEY_PASSWORD = "password"
-   .\gradlew.bat build
-   ```
-4. Verify compatibility across IDE versions:
-   ```bash
-   .\gradlew.bat runPluginVerifier
-   ```
-5. Create a publish token on the plugin page and publish:
-   ```powershell
-   $env:PUBLISH_TOKEN = "token"
-   .\gradlew.bat publishPlugin
-   ```
-
-Before publishing, update the vendor name, email, and repository URL in `plugin.xml` and `gradle.properties`.

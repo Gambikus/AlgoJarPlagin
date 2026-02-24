@@ -31,36 +31,21 @@ services:
         echo 'Bucket ready'
       "
 
-  coordinator:
-    build:
-      context: .
-      dockerfile: coordinator.Dockerfile
-    container_name: local-coordinator
-    ports:
-      - "8081:8081"
-    environment:
-      ORHESTRA_PORT: "8081"
-    volumes:
-      - coordinator_data:/app/data
-    security_opt:
-      - seccomp=unconfined
-
   spot-node:
     build:
       context: .
       dockerfile: spot.Dockerfile
     environment:
-      COORDINATOR_URL: "http://coordinator:8081"
+      COORDINATOR_URL: "http://host.docker.internal:8080"
       HEARTBEAT_INTERVAL: "5"
       CLAIM_INTERVAL: "2"
       MAX_TASKS: "2"
       TOTAL_CORES: "4"
-    depends_on:
-      - coordinator
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     security_opt:
       - seccomp=unconfined
     restart: unless-stopped
 
 volumes:
   minio_data:
-  coordinator_data:

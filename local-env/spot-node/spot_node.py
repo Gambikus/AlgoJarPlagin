@@ -102,7 +102,7 @@ def fake_best_pos(dim: int) -> list:
 def execute_task(task: dict):
     """Парсим payload, симулируем выполнение, репортируем результат."""
     global running_tasks
-    task_id = task["id"]
+    task_id = task["taskId"]
 
     try:
         payload = task.get("payload") or "{}"

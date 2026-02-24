@@ -1,124 +1,123 @@
-# Local Environment
+# Локальное окружение
 
-Docker-based local stack for end-to-end testing of the JAR Config Plugin.
+Локальный стек для сквозного тестирования JAR Config Plugin.
 
 ```
-Services:
-  MinIO        → http://localhost:9000  (S3-compatible storage)
+Сервисы:
+  MinIO        → http://localhost:9000  (S3-совместимое хранилище)
   MinIO UI     → http://localhost:9001  (minioadmin / minioadmin)
-  Coordinator  → http://localhost:8081  (REST API)
-  SPOT node    → (mock, internal — no exposed port)
+  Координатор  → http://localhost:8080  (запускается локально, см. ниже)
+  SPOT-нода    → мок на Python, запускается в Docker, подключается к локальному координатору
 ```
 
-## Prerequisites
+## Требования
 
-- **Docker Desktop** with Compose v2
-- **Java 17** and **Maven** (for building `test-algo-project`)
+- **Docker Desktop** с Compose v2
+- **Java 17+** и **Maven 3.9+**
 - Git
 
-## Setup
+## Запуск
 
-### 1. Clone the coordinator repo
+### 1. Клонировать репо координатора
 
 ```bash
 cd local-env/
 
-git clone <coordinator-repo-url> coordinator
+git clone https://github.com/Jexembayev/Orhestra_Soft.git coordinator
 ```
 
-After cloning the directory tree should look like this:
+После клонирования структура папок:
 
 ```
 local-env/
-├── coordinator/          ← cloned coordinator repo (gitignored)
-├── spot-node/            ← mock SPOT node (Python, part of this repo)
-├── coordinator.Dockerfile
+├── coordinator/      ← склонированный репо координатора (gitignored)
+├── spot-node/        ← мок SPOT-ноды (Python)
 ├── spot.Dockerfile
 ├── docker-compose.yml
 └── test-algo-project/
 ```
 
-> `coordinator/` is gitignored — it is not part of this repo.
-
-### 2. Start all services
+### 2. Запустить MinIO
 
 ```bash
-docker compose up -d --build
+docker compose up -d minio minio-init
 ```
 
-First run builds the coordinator from source (takes a few minutes).
-The mock SPOT node starts automatically and connects to the coordinator.
+### 3. Запустить координатор локально
 
-### 3. Verify services are up
+Открой отдельный терминал и выполни из папки `coordinator/`:
 
 ```bash
-docker compose ps
+cd coordinator
+mvn javafx:run
 ```
 
-All four containers (`local-minio`, `local-minio-init`, `local-coordinator`, `spot-node`)
-should show status `running`. The `minio-init` container exits with code 0 after creating the bucket — that is expected.
+Сервер координатора стартует на `http://localhost:8080`.
 
-Check coordinator health:
+### 4. Запустить мок SPOT-ноды
 
 ```bash
-curl http://localhost:8081/api/v1/health
+docker compose up -d spot-node
 ```
 
-Expected response: `{"status":"UP","database":"OK"}`.
+Мок SPOT-нода подключится к координатору по адресу `http://host.docker.internal:8080`.
 
-## Plugin configuration
+## Настройка плагина
 
-Open **Settings → Tools → JAR Config Plugin** in IntelliJ and set:
+Открой **Settings → Tools → JAR Config Plugin** в IntelliJ и укажи:
 
-| Setting         | Value                   |
+| Параметр        | Значение                |
 |-----------------|-------------------------|
-| Coordinator URL | `http://localhost:8081` |
+| Coordinator URL | `http://localhost:8080` |
 | S3 Endpoint     | `http://localhost:9000` |
 | Bucket          | `orhestra-algorithms`   |
 | Key Prefix      | `experiments`           |
 | Access Key      | `minioadmin`            |
 | Secret Key      | `minioadmin`            |
 
-Use **Test Coordinator** and **Test S3 Connection** buttons to verify connectivity before submitting a job.
+Нажми **Test Coordinator** и **Test S3 Connection** чтобы проверить подключение перед отправкой задания.
 
-## Running a test job
+## Тестовое задание
 
-`test-algo-project/` is a ready-to-use Maven algorithm project. Open it in IntelliJ as a separate project, then:
+`test-algo-project/` — готовый Maven-проект с алгоритмом. Открой его в IntelliJ как отдельный проект, затем:
 
-1. In the **JAR Config** panel, select the `test-algo` module.
-2. Set **Main Class** to `algorithms.Main`.
-3. Set **Algorithms** to `sphere,rosenbrock`.
-4. Leave parameter ranges at defaults (or adjust).
-5. Click **Build & Submit**.
+1. В панели **JAR Config** выбери модуль `test-algo`.
+2. Укажи **Main Class**: `algorithms.Main`.
+3. Укажи **Algorithms**: `sphere,rosenbrock`.
+4. Нажми **Build & Submit**.
 
-The plugin will build the JAR, upload it to MinIO, and submit a job to the Coordinator.
-The mock SPOT node will pick up tasks, simulate execution, and report results back.
+Мок SPOT-нода заберёт задачи, симулирует выполнение и отправит результаты обратно.
+В вкладке **Live Monitor** следи за прогрессом, в **Results** — экспортируй результаты.
 
-Watch the **Live Monitor** tab for SPOT node status and task progress.
-When all tasks finish, switch to the **Results** tab to load and export results.
+## Остановка
 
-## Stopping the environment
+Остановить всё:
 
 ```bash
-docker compose down
+docker compose down     # остановит MinIO и SPOT-ноду
 ```
 
-To also remove volumes (wipe MinIO data and coordinator database):
+В терминале с координатором нажми **Ctrl+C**.
+
+Остановить и удалить все данные (MinIO bucket, база координатора):
 
 ```bash
 docker compose down -v
 ```
 
-## Troubleshooting
+Остановить только один сервис, например SPOT-ноду:
 
-**Coordinator fails to start** — check that the source was cloned correctly into `coordinator/`.
-View logs with `docker compose logs coordinator`.
+```bash
+docker compose stop spot-node
+```
 
-**S3 upload fails with "bucket not found"** — the `minio-init` container may not have finished.
-Wait a few seconds and retry, or run:
+## Решение проблем
+
+**SPOT-нода не может подключиться к координатору** — убедись, что координатор запущен на порту 8080 до старта `docker compose up -d spot-node`.
+
+**Ошибка S3 "bucket not found"** — контейнер `minio-init` мог не успеть создать bucket. Подожди несколько секунд и повтори, или запусти вручную:
 ```bash
 docker compose run --rm minio-init
 ```
 
-**Test-algo build fails in IntelliJ** — make sure Maven is configured in IntelliJ
-(**Settings → Build → Build Tools → Maven**) and that Java 17 is selected.
+**Ошибка сборки test-algo в IntelliJ** — проверь, что Maven настроен в IntelliJ (**Settings → Build → Build Tools → Maven**) и выбрана Java 17.
