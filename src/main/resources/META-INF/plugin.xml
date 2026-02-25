@@ -1,6 +1,6 @@
 <idea-plugin>
-    <id>com.example.jarconfigplugin</id>
-    <name>JARConfigPlugin</name>
+    <id>com.gambikus.algojar</id>
+    <name>AlgoJar</name>
     <vendor email="support@example.com" url="https://github.com/Gambikus/AlgoJarPlagin">Gambikus</vendor>
     <description><![CDATA[
         IntelliJ IDEA plugin for configuring and launching JAR-based algorithms
