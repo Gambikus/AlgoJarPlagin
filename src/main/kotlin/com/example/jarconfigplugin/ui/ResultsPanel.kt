@@ -33,7 +33,7 @@ class ResultsPanel(private val project: Project, parentDisposable: Disposable) :
     private val resultsTable = JTable(resultsModel).apply {
         autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
     }
-    private val chartPanel = FoptChartPanel()
+    private val chart: ChartPanel = PlotlyChartPanel.createBestAvailable(parentDisposable)
 
     private val jobIdField = JBTextField().apply { emptyText.text = "Job ID" }
     private val loadButton = JButton("Load Results")
@@ -78,7 +78,7 @@ class ResultsPanel(private val project: Project, parentDisposable: Disposable) :
 
         val tabs = JTabbedPane().apply {
             addTab("Table", JBScrollPane(resultsTable))
-            addTab("Chart", chartPanel)
+            addTab("Chart", chart.component)
         }
 
         add(topBar, BorderLayout.NORTH)
@@ -104,7 +104,7 @@ class ResultsPanel(private val project: Project, parentDisposable: Disposable) :
                     val done = result.results.filter { it.status == TaskStatus.DONE }
                     ApplicationManager.getApplication().invokeLater {
                         resultsModel.update(done)
-                        chartPanel.update(done)
+                        chart.update(done)
                         val bestFopt = done.mapNotNull { it.fopt }.minOrNull()
                         summaryLabel.text = "Tasks: ${done.size} done  |  Best fopt: ${bestFopt?.let { "%.4f".format(it) } ?: "—"}"
                         loadButton.isEnabled = true

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1e1e1e;
+  color: #cccccc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+#toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3a3a3a;
+  flex-shrink: 0;
+}
+#toolbar label { color: #aaaaaa; white-space: nowrap; }
+#toolbar select {
+  background: #3c3c3c;
+  color: #cccccc;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#algo-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+#algo-filters label { cursor: pointer; }
+#algo-filters input[type=checkbox] { cursor: pointer; margin-right: 3px; }
+#plot { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <span id="axis-controls" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <label>X: <select id="x-sel"></select></label>
+    <label>Y: <select id="y-sel"></select></label>
+    <label>Size: <select id="size-sel"></select></label>
+  </span>
+  <label>Type: <select id="type-sel">
+    <option value="scatter">Scatter</option>
+    <option value="box">Box plot</option>
+    <option value="bar">Bar (mean Y)</option>
+    <option value="parcoords">Parallel Coords</option>
+  </select></label>
+  <span id="algo-filters"></span>
+</div>
+<div id="plot"></div>
+
+<script src="plotly.min.js"></script>
+<script>
+var _tasks = [];
+var _algoVisible = {};
+var _algoColors = {};
+var _algoOrder = [];
+var _numericFields = [];
+var PALETTE = ['#4472C4','#ED7D31','#70AD47','#FF4040','#7030A0','#00B0F0'];
+
+// Fields that should never appear in axis dropdowns
+var SKIP_FIELDS = new Set(['taskId', 'algorithm', 'assignedTo']);
+
+// Preferred field order for dropdowns
+var FIELD_ORDER = ['agents', 'iterations', 'dimension', 'runtimeMs', 'iter', 'fopt'];
+
+function color(algo) {
+  if (!_algoColors[algo]) {
+    _algoColors[algo] = PALETTE[Object.keys(_algoColors).length % PALETTE.length];
+  }
+  return _algoColors[algo];
+}
+
+function updateChart(jsonStr) {
+  _tasks = JSON.parse(jsonStr);
+  _algoColors = {};
+
+  // Discover all numeric fields across all tasks
+  var fieldSet = new Set();
+  _tasks.forEach(function(t) {
+    Object.keys(t).forEach(function(k) {
+      if (!SKIP_FIELDS.has(k) && typeof t[k] === 'number') fieldSet.add(k);
+    });
+  });
+
+  // Sort: preferred order first, then alphabetical remainder
+  _numericFields = [...fieldSet].sort(function(a, b) {
+    var ia = FIELD_ORDER.indexOf(a), ib = FIELD_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+
+  rebuildAxisDropdowns();
+
+  _algoOrder = [...new Set(_tasks.map(t => t.algorithm).filter(Boolean))];
+  _algoOrder.forEach(function(a) {
+    if (_algoVisible[a] === undefined) _algoVisible[a] = true;
+    color(a);
+  });
+  Object.keys(_algoVisible).forEach(function(a) {
+    if (!_algoOrder.includes(a)) delete _algoVisible[a];
+  });
+  buildFilters(_algoOrder);
+  render();
+}
+
+function rebuildAxisDropdowns() {
+  var xSel = document.getElementById('x-sel');
+  var ySel = document.getElementById('y-sel');
+  var szSel = document.getElementById('size-sel');
+
+  var prevX = xSel.value, prevY = ySel.value, prevSz = szSel.value;
+
+  function fillSelect(sel, fields, includeNone) {
+    sel.innerHTML = '';
+    if (includeNone) {
+      var opt = document.createElement('option');
+      opt.value = 'none'; opt.textContent = '(none)';
+      sel.appendChild(opt);
+    }
+    fields.forEach(function(f) {
+      var opt = document.createElement('option');
+      opt.value = f; opt.textContent = fieldLabel(f);
+      sel.appendChild(opt);
+    });
+  }
+
+  fillSelect(xSel, _numericFields, false);
+  fillSelect(ySel, _numericFields, false);
+  fillSelect(szSel, _numericFields, true);
+
+  // Restore previous selection if still available
+  if ([...xSel.options].some(o => o.value === prevX)) xSel.value = prevX;
+  else if (_numericFields.includes('agents')) xSel.value = 'agents';
+
+  if ([...ySel.options].some(o => o.value === prevY)) ySel.value = prevY;
+  else if (_numericFields.includes('fopt')) ySel.value = 'fopt';
+
+  if (prevSz === 'none' || [...szSel.options].some(o => o.value === prevSz)) szSel.value = prevSz || 'none';
+  else if (_numericFields.includes('iterations')) szSel.value = 'iterations';
+}
+
+function fieldLabel(f) {
+  var labels = {
+    agents: 'Agents', iterations: 'Iterations', dimension: 'Dimension',
+    runtimeMs: 'Runtime (ms)', iter: 'Iter done', fopt: 'fopt'
+  };
+  return labels[f] || f;
+}
+
+function buildFilters(algos) {
+  var el = document.getElementById('algo-filters');
+  el.innerHTML = '';
+  algos.forEach(function(a) {
+    var lbl = document.createElement('label');
+    lbl.style.color = color(a);
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = _algoVisible[a];
+    cb.addEventListener('change', function() { _algoVisible[a] = cb.checked; render(); });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(a));
+    el.appendChild(lbl);
+  });
+}
+
+function render() {
+  var xf = document.getElementById('x-sel').value;
+  var yf = document.getElementById('y-sel').value;
+  var sf = document.getElementById('size-sel').value;
+  var tp = document.getElementById('type-sel').value;
+
+  // Show/hide axis controls depending on chart type
+  var axisControls = document.getElementById('axis-controls');
+  axisControls.style.display = (tp === 'parcoords') ? 'none' : 'flex';
+
+  if (tp !== 'parcoords' && (!xf || !yf)) return;
+
+  var vis = _tasks.filter(t => _algoVisible[t.algorithm] !== false);
+
+  var layout = {
+    paper_bgcolor: '#1e1e1e', plot_bgcolor: '#1e1e1e',
+    font: { color: '#cccccc', size: 11 },
+    xaxis: { gridcolor: '#2a2a2a', zerolinecolor: '#444', title: fieldLabel(xf) },
+    yaxis: { gridcolor: '#2a2a2a', zerolinecolor: '#444', title: fieldLabel(yf) },
+    margin: { l: 60, r: 20, t: 20, b: 50 },
+    legend: { bgcolor: '#2a2a2a', bordercolor: '#444' },
+    hovermode: 'closest'
+  };
+  var cfg = { responsive: true, displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d','select2d'],
+    displaylogo: false };
+
+  var traces;
+  if (tp === 'scatter') {
+    traces = scatterTraces(vis, xf, yf, sf);
+  } else if (tp === 'box') {
+    traces = boxTraces(vis, yf);
+    layout.xaxis = { title: 'Algorithm', gridcolor: '#2a2a2a' };
+  } else if (tp === 'parcoords') {
+    traces = parcoordsTraces(vis);
+    layout = {
+      paper_bgcolor: '#1e1e1e',
+      font: { color: '#cccccc', size: 11 },
+      margin: { l: 60, r: 60, t: 40, b: 20 }
+    };
+  } else {
+    traces = barTraces(vis, yf);
+    layout.xaxis = { title: 'Algorithm', gridcolor: '#2a2a2a' };
+    layout.yaxis.title = 'Mean ' + fieldLabel(yf);
+  }
+
+  Plotly.react('plot', traces, layout, cfg);
+}
+
+function scatterTraces(tasks, xf, yf, sf) {
+  var algos = [...new Set(tasks.map(t => t.algorithm).filter(Boolean))];
+  return algos.map(function(algo) {
+    var pts = tasks.filter(t => t.algorithm === algo && t[xf] != null && t[yf] != null);
+    var vals = sf !== 'none' ? pts.map(t => t[sf] || 1) : null;
+    var mn = vals ? Math.min(...vals) : 0, mx = vals ? Math.max(...vals) : 0;
+    var rng = mx === mn ? 1 : mx - mn;
+    var sizes = vals ? vals.map(v => 8 + (v - mn) / rng * 16) : pts.map(() => 10);
+    var c = color(algo);
+
+    // Build tooltip from all numeric fields
+    var customdata = pts.map(function(t) {
+      return [t.taskId, t.assignedTo].concat(
+        _numericFields.filter(f => f !== xf && f !== yf).map(f => t[f])
+      );
+    });
+    var extraLines = _numericFields.filter(f => f !== xf && f !== yf)
+      .map((f, i) => fieldLabel(f) + ': %{customdata[' + (i + 2) + ']}')
+      .join('<br>');
+
+    return {
+      type: 'scatter', mode: 'markers', name: algo,
+      x: pts.map(t => t[xf]),
+      y: pts.map(t => t[yf]),
+      marker: { size: sizes, color: c, opacity: 0.8, line: { color: c, width: 1 } },
+      customdata: customdata,
+      hovertemplate:
+        '<b>%{customdata[0]}</b><br>' +
+        fieldLabel(xf) + ': %{x}  ' + fieldLabel(yf) + ': <b>%{y}</b><br>' +
+        extraLines +
+        (extraLines ? '<br>' : '') +
+        'Node: %{customdata[1]}' +
+        '<extra>' + algo + '</extra>'
+    };
+  });
+}
+
+function boxTraces(tasks, yf) {
+  var algos = [...new Set(tasks.map(t => t.algorithm).filter(Boolean))];
+  return algos.map(function(algo) {
+    var pts = tasks.filter(t => t.algorithm === algo && t[yf] != null);
+    return {
+      type: 'box', name: algo,
+      y: pts.map(t => t[yf]),
+      marker: { color: color(algo) }, boxpoints: 'outliers',
+      hovertemplate: fieldLabel(yf) + ': %{y}<extra>' + algo + '</extra>'
+    };
+  });
+}
+
+function barTraces(tasks, yf) {
+  var algos = [...new Set(tasks.map(t => t.algorithm).filter(Boolean))];
+  var means = algos.map(function(algo) {
+    var pts = tasks.filter(t => t.algorithm === algo && t[yf] != null);
+    return pts.length ? pts.reduce((s, t) => s + t[yf], 0) / pts.length : 0;
+  });
+  return [{ type: 'bar', x: algos, y: means,
+    marker: { color: algos.map(color) },
+    hovertemplate: '%{x}: <b>%{y:.4f}</b><extra></extra>' }];
+}
+
+function parcoordsTraces(tasks) {
+  if (tasks.length === 0) return [];
+
+  // Build colorscale from palette: one color per algorithm
+  var algos = _algoOrder.filter(a => _algoVisible[a] !== false);
+  var n = Math.max(algos.length - 1, 1);
+  var colorscale = algos.map(function(a, i) {
+    return [i / n, color(a)];
+  });
+  // Plotly requires at least two colorscale stops
+  if (algos.length === 1) colorscale = [[0, color(algos[0])], [1, color(algos[0])]];
+
+  var algoIndex = tasks.map(function(t) { return algos.indexOf(t.algorithm); });
+
+  // One dimension per numeric field
+  var dims = _numericFields.map(function(f) {
+    var vals = tasks.map(function(t) { return t[f] != null ? t[f] : 0; });
+    return { label: fieldLabel(f), values: vals };
+  });
+
+  // Add algorithm dimension as categorical index (first)
+  dims.unshift({
+    label: 'Algorithm',
+    values: algoIndex,
+    tickvals: algos.map(function(_, i) { return i; }),
+    ticktext: algos
+  });
+
+  return [{
+    type: 'parcoords',
+    line: {
+      color: algoIndex,
+      colorscale: colorscale,
+      showscale: false
+    },
+    dimensions: dims,
+    unselected: { line: { opacity: 0.08 } }
+  }];
+}
+
+document.getElementById('x-sel').addEventListener('change', render);
+document.getElementById('y-sel').addEventListener('change', render);
+document.getElementById('size-sel').addEventListener('change', render);
+document.getElementById('type-sel').addEventListener('change', render);
+</script>
+</body>
+</html>

@@ -71,7 +71,7 @@ class JarBuildService(private val project: Project) {
         ).any { it.exists() && it.readText().contains("shadow", ignoreCase = true) }
 
         return if (hasShadow) {
-            listOf("shadowJar", ":$moduleName:shadowJar", "jar", ":$moduleName:jar")
+            listOf("jar", ":$moduleName:jar", "shadowJar", ":$moduleName:shadowJar")
         } else {
             listOf("jar", ":$moduleName:jar")
         }

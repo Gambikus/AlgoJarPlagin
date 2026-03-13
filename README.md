@@ -153,6 +153,6 @@ plugin root/
 
 ## Совместимость
 
-- **sinceBuild**: 241 (IntelliJ IDEA 2024.1)
-- **untilBuild**: 243.* (IntelliJ IDEA 2024.3.x)
+- **sinceBuild**: 223 (IntelliJ IDEA 2022.3)
+- **untilBuild**: не ограничен
 
